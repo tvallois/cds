@@ -161,7 +161,7 @@ func (c *client) Stream(method string, path string, args []byte, noTimeout bool,
 
 		var errDo error
 		var resp *http.Response
-		if !noTimeout {
+		if noTimeout {
 			if c.HTTPClientWithoutTimeout == nil {
 				return nil, 0, fmt.Errorf("HTTPClientWithoutTimeout is not setted on this client")
 			}
