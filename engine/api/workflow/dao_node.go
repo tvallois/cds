@@ -38,14 +38,12 @@ func insertNode(db gorp.SqlExecutor, w *sdk.Workflow, n *sdk.WorkflowNode, u *sd
 	n.WorkflowID = w.ID
 	n.ID = 0
 
+	// Set pipeline ID
 	if n.PipelineID == 0 {
 		n.PipelineID = n.Pipeline.ID
 	}
 
-	if n.Name == "" {
-		n.Name = n.Pipeline.Name
-	}
-
+	// Init context
 	if n.Context == nil {
 		n.Context = &sdk.WorkflowNodeContext{}
 	}
