@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -39,7 +40,7 @@ var workflowListCmd = cli.Command{
 }
 
 func workflowListRun(v cli.Values) (cli.ListResult, error) {
-	w, err := client.WorkflowList(v["project-key"])
+	w, err := client.WorkflowList(v.GetString("project-key"))
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ var workflowShowCmd = cli.Command{
 }
 
 func workflowShowRun(v cli.Values) (interface{}, error) {
-	w, err := client.WorkflowGet(v["project-key"], v["workflow-name"])
+	w, err := client.WorkflowGet(v.GetString("project-key"), v.GetString("workflow-name"))
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +94,16 @@ var workflowRunManualCmd = cli.Command{
 
 func workflowRunManualRun(v cli.Values) error {
 	manual := sdk.WorkflowNodeRunManual{}
-	if v["payload"] != "" {
-		manual.Payload = v["payload"]
+	if v.GetString("payload") != "" {
+		bodyJSONArray := []interface{}{}
+		if err := json.Unmarshal([]byte(v.GetString("payload")), &bodyJSONArray); err != nil {
+			bodyJSONMap := map[string]interface{}{}
+			if err2 := json.Unmarshal([]byte(v.GetString("payload")), &bodyJSONMap); err2 == nil {
+				manual.Payload = bodyJSONMap
+			}
+		} else {
+			manual.Payload = bodyJSONArray
+		}
 	}
 
 	var runNumber, fromNodeID int64
@@ -111,7 +120,7 @@ func workflowRunManualRun(v cli.Values) error {
 		if runNumber <= 0 {
 			return fmt.Errorf("You can use flag node-name without flag run-number")
 		}
-		wr, err := client.WorkflowRunGet(v["project-key"], v["workflow-name"], runNumber)
+		wr, err := client.WorkflowRunGet(v.GetString("project-key"), v.GetString("workflow-name"), runNumber)
 		if err != nil {
 			return err
 		}
@@ -126,7 +135,7 @@ func workflowRunManualRun(v cli.Values) error {
 		}
 	}
 
-	w, err := client.WorkflowRunFromManual(v["project-key"], v["workflow-name"], manual, runNumber, fromNodeID)
+	w, err := client.WorkflowRunFromManual(v.GetString("project-key"), v.GetString("workflow-name"), manual, runNumber, fromNodeID)
 	if err != nil {
 		return err
 	}
@@ -136,7 +145,7 @@ func workflowRunManualRun(v cli.Values) error {
 
 	for {
 		var errrg error
-		wo, errrg = client.WorkflowRunGet(v["project-key"], v["workflow-name"], w.Number)
+		wo, errrg = client.WorkflowRunGet(v.GetString("project-key"), v.GetString("workflow-name"), w.Number)
 		if errrg != nil {
 			return errrg
 		}
@@ -158,7 +167,7 @@ func workflowRunManualRun(v cli.Values) error {
 							end = fmt.Sprintf(" end:%s", job.Done)
 						}
 
-						jobLine := fmt.Sprintf("%s  %s/%s/%s/%s %s %s \n", status, v["workflow-name"], wn.Name, stage.Name, job.Job.Action.Name, start, end)
+						jobLine := fmt.Sprintf("%s  %s/%s/%s/%s %s %s \n", status, v.GetString("workflow-name"), wn.Name, stage.Name, job.Job.Action.Name, start, end)
 						if job.Status == sdk.StatusFail.String() {
 							newOutput += fmt.Sprintf(tm.Color(tm.Bold(jobLine), tm.RED))
 						} else {
@@ -171,7 +180,7 @@ func workflowRunManualRun(v cli.Values) error {
 						newOutput += fmt.Sprintf("\n")
 
 						for _, step := range job.Job.StepStatus {
-							buildState, errb := client.WorkflowNodeRunJobStep(v["project-key"], v["workflow-name"], wo.Number, wnr.ID, job.ID, step.StepOrder)
+							buildState, errb := client.WorkflowNodeRunJobStep(v.GetString("project-key"), v.GetString("workflow-name"), wo.Number, wnr.ID, job.ID, step.StepOrder)
 							if errb != nil {
 								return errb
 							}
@@ -185,7 +194,7 @@ func workflowRunManualRun(v cli.Values) error {
 								if step.Status == sdk.StatusFail.String() {
 									if !failedOnStepKnowned {
 										// hide "Starting" text on resume
-										failedOn = fmt.Sprintf("%s%s / %s / %s / %s %s \n", failedOn, v["workflow-name"], wn.Name, stage.Name, titleStep, strings.Replace(line, "Starting", "", 1))
+										failedOn = fmt.Sprintf("%s%s / %s / %s / %s %s \n", failedOn, v.GetString("workflow-name"), wn.Name, stage.Name, titleStep, strings.Replace(line, "Starting", "", 1))
 									}
 									failedOnStepKnowned = true
 									titleStep = fmt.Sprintf(tm.Color(titleStep, tm.RED))
@@ -220,7 +229,7 @@ func workflowRunManualRun(v cli.Values) error {
 
 	if wo != nil {
 		iconStatus, _ := statusShort(wo.Status)
-		tm.Printf("Workflow: %s - RUN %d.%d - %s %s \n", v["workflow-name"], wo.Number, wo.LastSubNumber, wo.Status, iconStatus)
+		tm.Printf("Workflow: %s - RUN %d.%d - %s %s \n", v.GetString("workflow-name"), wo.Number, wo.LastSubNumber, wo.Status, iconStatus)
 		tm.Printf("Start: %s - End %s\n", wo.Start, wo.LastModified)
 		tm.Printf("Duration: %s\n", sdk.Round(wo.LastModified.Sub(wo.Start), time.Second).String())
 		if wo.Status == sdk.StatusFail.String() {
@@ -237,7 +246,7 @@ func workflowRunManualRun(v cli.Values) error {
 			baseURL = b
 		}
 
-		u := fmt.Sprintf("%s/project/%s/workflow/%s/run/%d", baseURL, v["project-key"], v["workflow-name"], wo.Number)
+		u := fmt.Sprintf("%s/project/%s/workflow/%s/run/%d", baseURL, v.GetString("project-key"), v.GetString("workflow-name"), wo.Number)
 		tm.Printf("View on web UI: %s\n", u)
 	}
 	tm.Flush()
